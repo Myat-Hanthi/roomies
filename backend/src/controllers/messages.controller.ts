@@ -16,25 +16,25 @@ export async function getMessages(req: AuthenticatedRequest, res: Response) {
     try {
         // Security: verify user is part of this match
         const { data: match, error: matchError } = await supabaseAdmin
-        .from("matches")
-        .select("id, requester_id, owner_id")
-        .eq("id", matchId)
-        .or(`requester_id.eq.${userId},owner_id.eq.${userId}`)
-        .maybeSingle();
+            .from("matches")
+            .select("id, requester_id, owner_id")
+            .eq("id", matchId)
+            .or(`requester_id.eq.${userId},owner_id.eq.${userId}`)
+            .maybeSingle();
 
         if (matchError || !match) {
-        return res.status(403).json({ message: "Not authorized to view these messages." });
+            return res.status(403).json({ message: "Not authorized to view these messages." });
         }
 
         // Fetch all messages for this match
         const { data, error } = await supabaseAdmin
-        .from("messages")
-        .select(`
+            .from("messages")
+            .select(`
             id, match_id, sender_id, content, created_at,
             users!sender_id ( name, profile_photo )
         `)
-        .eq("match_id", matchId)
-        .order("created_at", { ascending: true });
+            .eq("match_id", matchId)
+            .order("created_at", { ascending: true });
 
         if (error) throw error;
 
@@ -42,11 +42,11 @@ export async function getMessages(req: AuthenticatedRequest, res: Response) {
     } catch (err: any) {
         return res.status(500).json({ message: err.message || "Failed to fetch messages." });
     }
-    }
+}
 
-    // POST /api/messages/:matchId
-    // Send a new message to a match
-    export async function sendMessage(req: AuthenticatedRequest, res: Response) {
+// POST /api/messages/:matchId
+// Send a new message to a match
+export async function sendMessage(req: AuthenticatedRequest, res: Response) {
     const userId = req.user!.id;
     const { matchId } = req.params;
     const { content } = req.body;
@@ -59,27 +59,27 @@ export async function getMessages(req: AuthenticatedRequest, res: Response) {
     try {
         // Security: verify user is part of this match and it's accepted
         const { data: match, error: matchError } = await supabaseAdmin
-        .from("matches")
-        .select("id, status")
-        .eq("id", matchId)
-        .eq("status", "accepted")    // Can only chat in accepted matches
-        .or(`requester_id.eq.${userId},owner_id.eq.${userId}`)
-        .maybeSingle();
+            .from("matches")
+            .select("id, status")
+            .eq("id", matchId)
+            .eq("status", "accepted")    // Can only chat in accepted matches
+            .or(`requester_id.eq.${userId},owner_id.eq.${userId}`)
+            .maybeSingle();
 
         if (matchError || !match) {
-        return res.status(403).json({ message: "Not authorized to send messages in this match." });
+            return res.status(403).json({ message: "Not authorized to send messages in this match." });
         }
 
         // Insert the message
         const { data, error } = await supabaseAdmin
-        .from("messages")
-        .insert({
-            match_id: matchId,
-            sender_id: userId,
-            content: content.trim(),
-        })
-        .select()
-        .single();
+            .from("messages")
+            .insert({
+                match_id: matchId,
+                sender_id: userId,
+                content: content.trim(),
+            })
+            .select()
+            .single();
 
         if (error) throw error;
 
@@ -87,5 +87,44 @@ export async function getMessages(req: AuthenticatedRequest, res: Response) {
         return res.status(201).json(data);
     } catch (err: any) {
         return res.status(500).json({ message: err.message || "Failed to send message." });
+    }
+}
+//DELETE /api/message/:matchId/:messageId
+//unsend - delete message from DB for everyone
+//only the original sender can unsend
+export async function unsendMessage(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user!.id;
+    const {  messageId } = req.params;
+    console.log("Unsend called:", { messageId, userId });
+    try {
+        //Check message exists and belongs to this match
+        const { data: message, error: msgError } = await supabaseAdmin
+            .from("messages")
+            .select("id, sender_id, match_id")
+            .eq("id", messageId)
+            .maybeSingle();
+        console.log("Message found:", message); 
+        console.log("Message error:", msgError);
+        if (msgError || !message) {
+            return res.status(404).json({ message: "Message not found." });
+        }
+        //only sender can unsend their own message
+        if (message.sender_id !== userId) {
+            return res.status(403).json({ message: " You can only unsend your own message." });
+
+        }
+
+
+        //delete from db, supabase realtime fires DELETE event to all subscribers
+        const { error: deleteError } = await supabaseAdmin
+            .from("messages")
+            .delete()
+            .eq("id", messageId);
+
+        if (deleteError) throw deleteError;
+        return res.json({ message: "Message unsent successfully.", id: messageId });
+
+    } catch (err: any) {
+        return res.status(500).json({ message: err.message || "Failed to unsend message." });
     }
 }

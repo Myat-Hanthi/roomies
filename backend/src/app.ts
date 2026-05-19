@@ -1,6 +1,8 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import { unsendMessage } from "./controllers/messages.controller";
+import { requireAuth } from "./middleware/auth.middleware";
 import { errorHandler } from "./middleware/error.middleware";
 import authRoutes from "./routes/auth.routes";
 import matchesRoutes from "./routes/matches.routes";
@@ -38,13 +40,22 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", profileRoutes);
 app.use("/api/posts", postsRoutes);
 app.use("/api/matches", matchesRoutes);
+app.delete("/api/messages/:messageId",requireAuth,
+  (req, res, next) => {
+  console.log("🔴 Direct DELETE hit!", req.params.messageId);
+  next();
+},unsendMessage);
+
 app.use("/api/messages", messagesRoutes);
+app.use("/api/messages", messagesRoutes);
+console.log("Messages routes registered")
 app.use("/api/reviews", reviewsRoutes);
 
-app.use(errorHandler);
 
+app.use(errorHandler);
+console.log("Registering messages routes...");
 app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(` Server running on http://localhost:${PORT}`);
 });
 
-export default app;
+export { app };

@@ -6,11 +6,10 @@ import axios from "axios";
 import type { CSSProperties, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API } from "../lib/api";
 import { supabase } from "../lib/supabase";
 
-const API = "http://localhost:8000/api";
-
-// ── Helper: Get JWT token ──
+//  Helper: Get JWT token 
 const getToken = async () => {
   const { data: { session } } = await supabase.auth.getSession();
   return session?.access_token || "";
@@ -491,9 +490,9 @@ export default function Review() {
   );
 }
 
-// ============================================================
-// Styles — from teammate's original design
-// ============================================================
+
+// Styles 
+
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: "100vh", background: "#fafaf8", fontFamily: "'Georgia', serif", position: "relative", overflowX: "hidden", color: "#1a1a1a" },
   bgAccent: { position: "fixed", top: -200, right: -200, width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, #e8e4dc 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 },

@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import type { RegisterForm, LoginForm } from "../types/user";
+import type { LoginForm, RegisterForm } from "../types/user";
 
 
 // Function to handle user registration
@@ -59,4 +59,18 @@ export async function logoutUser() {
 
   localStorage.removeItem("access_token");
   localStorage.removeItem("user");
+}
+
+// Function to start a Supabase OAuth flow for social login
+export async function loginWithSocialProvider(provider: "google" | "kakao") {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: `${window.location.origin}/profile`,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
 }

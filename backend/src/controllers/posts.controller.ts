@@ -64,6 +64,40 @@ export async function getPostById(req: Request, res: Response) {
         if (error || !post) {
             return res.status(404).json({ message: "Post not found." });
         }
+        //to hide full address
+        let canViewFullAddress = false;
+        const authHeader = req.headers.authorization;
+
+        if (authHeader?.startsWith("Bearer ")) {
+            const token = authHeader.replace("Bearer ", "").trim();
+            const {
+                data: { user },
+                error: authError,
+            } = await supabaseAdmin.auth.getUser(token);
+
+            if (!authError && user) {
+                if (user.id === post.user_id) {
+                    canViewFullAddress = true;
+                } else {
+                    const { data: acceptedMatch, error: matchError } = await supabaseAdmin
+                        .from("matches")
+                        .select("id")
+                        .eq("post_id", id)
+                        .eq("owner_id", post.user_id)
+                        .eq("requester_id", user.id)
+                        .eq("status", "accepted")
+                        .maybeSingle();
+
+                    if (!matchError && acceptedMatch) {
+                        canViewFullAddress = true;
+                    }
+                }
+            }
+        }
+
+        if (canViewFullAddress) {
+            return res.json(post);
+        }
 
         //hide full address by default
         const { full_address, ...safePost } = post;
@@ -73,7 +107,28 @@ export async function getPostById(req: Request, res: Response) {
         return res.status(500).json({ message: error.message || "Failed to fetch post." });
     }
 }
+// Return the editable version of a post for its owner only.
+export async function getPostForEdit(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user!.id;
+    const { id } = req.params;
 
+    try {
+        const { data, error } = await supabaseAdmin
+            .from("posts")
+            .select("*")
+            .eq("id", id)
+            .eq("user_id", userId)
+            .single();
+
+        if (error || !data) {
+            return res.status(404).json({ message: "Post not found or not authorized." });
+        }
+
+        return res.json(data);
+    } catch (error: any) {
+        return res.status(500).json({ message: error.message || "Failed to fetch post for editing." });
+    }
+}
 // POST /api/posts
 //create a new post( auth required)
 export async function createPost(req: AuthenticatedRequest, res: Response) {

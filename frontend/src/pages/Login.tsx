@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { loginUser, loginWithSocialProvider } from "../services/authService";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -11,6 +11,9 @@ export default function Login() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<"google" | "kakao" | null>(
+    null
+  );
   const [error, setError] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,23 +38,27 @@ export default function Login() {
     setError("");
 
     try {
-      const { data, error: loginError } =
-        await supabase.auth.signInWithPassword({
-          email: form.email,
-          password: form.password,
-        });
-
-      if (loginError) throw loginError;
-      if (!data.session) throw new Error("Login failed.");
-
-      localStorage.setItem("access_token", data.session.access_token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
+      await loginUser(form);
       navigate("/profile");
     } catch (err: any) {
-      setError("Email or password is incorrect.");
+      setError(err.response?.data?.message || "Email or password is incorrect.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: "google" | "kakao") => {
+    setError("");
+    setSocialLoading(provider);
+
+    try {
+      await loginWithSocialProvider(provider);
+    } catch (err: any) {
+      setError(
+        err.message ||
+          `Unable to start ${provider} login right now. Please try again.`
+      );
+      setSocialLoading(null);
     }
   };
 
@@ -65,7 +72,7 @@ export default function Login() {
             <p style={styles.brand}>roomies</p>
             <h1 style={styles.tagline}>Welcome Back.</h1>
             <p style={styles.subTagline}>
-              Sign in and continue finding your perfect space in Korea.
+              Sign in with Google, Kakao, or your email and continue finding your perfect space in Korea.
             </p>
           </div>
 
@@ -80,9 +87,17 @@ export default function Login() {
         <div style={styles.rightPanel}>
           <div style={styles.formCard}>
             <h2 style={styles.formTitle}>Sign in to your account</h2>
-            <p style={styles.formSub}>Welcome back to Roomies</p>
+            <p style={styles.formSub}>
+              Pick the easiest way to continue your Roomies journey.
+            </p>
 
             {error && <div style={styles.errorBox}>{error}</div>}
+
+            <div style={styles.dividerRow}>
+              <div style={styles.dividerLine} />
+              <span style={styles.dividerText}>sign in with email</span>
+              <div style={styles.dividerLine} />
+            </div>
 
             <div style={styles.fields}>
               <Field
@@ -112,22 +127,97 @@ export default function Login() {
               <button
                 style={styles.btn}
                 onClick={handleLogin}
-                disabled={loading}
+                disabled={loading || socialLoading !== null}
               >
                 {loading ? "Signing in..." : "Login →"}
               </button>
             </div>
 
             <p style={styles.loginPrompt}>
-              Don&apos;t have an account?{" "}
+              Don&apos;t have an account yet?{" "}
               <Link to="/register" style={styles.loginLink}>
-                Sign up
+                Create one with email
               </Link>
             </p>
+
+            <div style={styles.socialSection}>
+              <div style={styles.dividerRowBottom}>
+                <div style={styles.dividerLine} />
+                <span style={styles.dividerText}>or continue with</span>
+                <div style={styles.dividerLine} />
+              </div>
+
+              <div style={styles.socialStack}>
+                <SocialButton
+                  label="Continue with Google"
+                  providerLabel="G"
+                  providerColor="#ffffff"
+                  providerTextColor="#1a1a1a"
+                  onClick={() => handleSocialLogin("google")}
+                  disabled={loading || socialLoading !== null}
+                  loading={socialLoading === "google"}
+                />
+
+                <SocialButton
+                  label="Continue with Kakao"
+                  providerLabel="K"
+                  providerColor="#FEE500"
+                  providerTextColor="#191600"
+                  onClick={() => handleSocialLogin("kakao")}
+                  disabled={loading || socialLoading !== null}
+                  loading={socialLoading === "kakao"}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function SocialButton({
+  label,
+  providerLabel,
+  providerColor,
+  providerTextColor,
+  onClick,
+  disabled,
+  loading,
+}: {
+  label: string;
+  providerLabel: string;
+  providerColor: string;
+  providerTextColor: string;
+  onClick: () => void;
+  disabled: boolean;
+  loading: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      style={{
+        ...styles.socialButton,
+        opacity: disabled ? 0.7 : 1,
+        cursor: disabled ? "default" : "pointer",
+      }}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <span
+        style={{
+          ...styles.socialBadge,
+          background: providerColor,
+          color: providerTextColor,
+        }}
+      >
+        {providerLabel}
+      </span>
+
+      <span style={styles.socialButtonText}>
+        {loading ? "Redirecting..." : label}
+      </span>
+    </button>
   );
 }
 
@@ -282,6 +372,64 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 20,
     fontFamily: "'Georgia', serif",
   },
+  socialStack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
+  socialButton: {
+    width: "100%",
+    border: "1px solid #e6e1d8",
+    background: "#fbfaf7",
+    color: "#1a1a1a",
+    padding: "14px 16px",
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    fontSize: 14,
+    fontFamily: "'Georgia', serif",
+    borderRadius: 2,
+    transition: "background 0.2s ease",
+  },
+  socialBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 14,
+    fontWeight: 700,
+    border: "1px solid rgba(0,0,0,0.08)",
+    flexShrink: 0,
+  },
+  socialButtonText: {
+    letterSpacing: "0.01em",
+  },
+  dividerRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 24,
+  },
+  dividerRowBottom: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    background: "#ebe6dd",
+  },
+  dividerText: {
+    fontSize: 11,
+    letterSpacing: "0.14em",
+    textTransform: "uppercase",
+    color: "#aaa",
+    whiteSpace: "nowrap",
+  },
   fields: {
     display: "flex",
     flexDirection: "column",
@@ -332,6 +480,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#aaa",
     fontFamily: "'Georgia', serif",
     textAlign: "center",
+  },
+  socialSection: {
+    marginTop: 30,
   },
   loginLink: {
     color: "#1a1a1a",

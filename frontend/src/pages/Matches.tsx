@@ -5,10 +5,8 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API } from "../lib/api";
 import { supabase } from "../lib/supabase";
-
-//Base URL for Express backend API
-const API = "http://localhost:8000/api";
 
 //Helper function to get JWT token from supabase session
 const getToken = async () => {

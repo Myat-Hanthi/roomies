@@ -6,6 +6,7 @@ import Chat from "./pages/Chat";
 import Login from "./pages/Login";
 import Matches from "./pages/Matches";
 import PostDetail from "./pages/PostDetail";
+import PostEdit from "./pages/PostEdit";
 import PostForm from './pages/PostForm';
 import Profile from "./pages/Profile";
 import Register from "./pages/Register";
@@ -52,6 +53,9 @@ function App() {
         } />
         <Route path="/post-detail/:id" element={
           <ProtectedRoute><PostDetail /></ProtectedRoute>
+        } />
+        <Route path="/post-edit/:id" element={
+          <ProtectedRoute><PostEdit /></ProtectedRoute>
         } />
         <Route path="/matches" element={
           <ProtectedRoute><Matches /></ProtectedRoute>

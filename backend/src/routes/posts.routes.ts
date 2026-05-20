@@ -4,6 +4,7 @@ import {
     deletePost,
     getAllPosts,
     getPostById,
+    getPostForEdit,
     updatePost,
 } from "../controllers/posts.controller";
 import { requireAuth } from "../middleware/auth.middleware";
@@ -16,8 +17,11 @@ const router = Router();
 //Get All Active posts ( public - no auth needed for browsing )
 router.get("/", getAllPosts);
 
+// Fetch the owner's editable post payload, including private fields.
+router.get("/:id/edit", requireAuth, getPostForEdit);
+
 //get a single post by id (public)
-router.post("/:id", getPostById);
+router.get("/:id", getPostById);
 
 //create a new post (requires auth)
 router.post("/", requireAuth, createPost);

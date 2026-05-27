@@ -56,6 +56,33 @@ const roomTypeOptions = [
     { label: "Apartment", value: "apartment" },
     { label: "Shared House", value: "shared_house" },
 ];
+const SEOUL_DISTRICTS = [
+    { name: "Gangnam-gu", lat: 37.5172, lng: 127.0473 },
+    { name: "Gangdong-gu", lat: 37.5301, lng: 127.1238 },
+    { name: "Gangbuk-gu", lat: 37.6396, lng: 127.0253 },
+    { name: "Gangseo-gu", lat: 37.5509, lng: 126.8495 },
+    { name: "Gwanak-gu", lat: 37.4784, lng: 126.9516 },
+    { name: "Gwangjin-gu", lat: 37.5384, lng: 127.0822 },
+    { name: "Guro-gu", lat: 37.4954, lng: 126.8874 },
+    { name: "Geumcheon-gu", lat: 37.4600, lng: 126.9002 },
+    { name: "Nowon-gu", lat: 37.6542, lng: 127.0568 },
+    { name: "Dobong-gu", lat: 37.6688, lng: 127.0471 },
+    { name: "Dongdaemun-gu", lat: 37.5744, lng: 127.0396 },
+    { name: "Dongjak-gu", lat: 37.5124, lng: 126.9393 },
+    { name: "Mapo-gu", lat: 37.5663, lng: 126.9014 },
+    { name: "Seodaemun-gu", lat: 37.5791, lng: 126.9368 },
+    { name: "Seocho-gu", lat: 37.4836, lng: 127.0327 },
+    { name: "Seongdong-gu", lat: 37.5633, lng: 127.0369 },
+    { name: "Seongbuk-gu", lat: 37.5894, lng: 127.0167 },
+    { name: "Songpa-gu", lat: 37.5145, lng: 127.1059 },
+    { name: "Yangcheon-gu", lat: 37.5270, lng: 126.8561 },
+    { name: "Yeongdeungpo-gu", lat: 37.5263, lng: 126.8963 },
+    { name: "Yongsan-gu", lat: 37.5326, lng: 126.9905 },
+    { name: "Eunpyeong-gu", lat: 37.6027, lng: 126.9291 },
+    { name: "Jongno-gu", lat: 37.5735, lng: 126.9790 },
+    { name: "Jung-gu", lat: 37.5640, lng: 126.9975 },
+    { name: "Jungnang-gu", lat: 37.6063, lng: 127.0928 },
+];
 
 function normalizePhotos(value: unknown): string[] {
     if (Array.isArray(value)) {
@@ -108,6 +135,8 @@ export default function PostEdit() {
         genderPreference: "No Preference",
         descriptionEn: "",
         descriptionKo: "",
+        latitude: null as number | null,
+        longitude: null as number | null,
     });
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
@@ -142,6 +171,8 @@ export default function PostEdit() {
                 genderPreference: data.gender_preference || "No Preference",
                 descriptionEn: data.description_en || "",
                 descriptionKo: data.description_ko || "",
+                latitude: data.latitude || null,
+                longitude: data.longitude || null,
             });
             const photos = normalizePhotos(data.photos);
             setSelectedTags(data.lifestyle_tags || []);
@@ -162,6 +193,17 @@ export default function PostEdit() {
         const { name, value } = e.target;
         setForm((prev) => ({ ...prev, [name]: value }));
         setError("");
+    };
+    const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const selectedName = e.target.value;
+        const district = SEOUL_DISTRICTS.find(d => d.name === selectedName);
+
+        setForm(prev => ({
+            ...prev,
+            region: selectedName,
+            latitude: district?.lat || null,
+            longitude: district?.lng || null,
+        }));
     };
 
     const toggleTag = (tag: string) => {
@@ -237,11 +279,16 @@ export default function PostEdit() {
                 description_en: form.descriptionEn,
                 description_ko: form.descriptionKo,
                 photos: nextPhotos,
+                latitude: form.latitude, //add coordinates
+                longitude: form.longitude, //add coordinates
             }, {
                 headers: { Authorization: `Bearer ${token}` },
             });
 
             navigate(`/post-detail/${id}`);
+            console.log("form.region:", form.region);
+  console.log("form.latitude:", form.latitude);
+  console.log("form.longitude:", form.longitude);
         } catch (err: any) {
             setError(getRequestErrorMessage(err, "Failed to update post."));
         } finally {
@@ -296,7 +343,16 @@ export default function PostEdit() {
                                 </select>
                             </Field>
                             <Field label="Region / District">
-                                <input aria-label="Region / District" name="region" value={form.region} onChange={handleChange} style={styles.input} />
+                                <select
+                                    aria-label="Region / District"
+                                    value={form.region}
+                                    onChange={handleDistrictChange}
+                                    style={styles.select}>
+                                    <option value="">Select a district</option>
+                                    {SEOUL_DISTRICTS.map(d => (
+                                        <option key={d.name} value={d.name}>{d.name}</option>
+                                    ))}
+                                </select>
                             </Field>
                         </div>
 

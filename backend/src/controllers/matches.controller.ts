@@ -22,7 +22,7 @@ export async function requestMatch(req: AuthenticatedRequest, res: Response) {
             .from("posts")
             .select("*")
             .eq("id", post_id)
-            .eq("is_active", true)
+            .eq("status", "active")
             .maybeSingle();
         
         if (postError || !post){

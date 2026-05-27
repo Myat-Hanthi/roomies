@@ -1,21 +1,40 @@
 import { Router } from "express";
-import { getMessages, sendMessage } from "../controllers/messages.controller";
+import {
+    acceptMatch,
+    cancelMatch,
+    declineMatch,
+    getAcceptedMatches,
+    getIncomingMatches,
+    getOutgoingMatches,
+    requestMatch,
+} from "../controllers/matches.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 
-console.log("Messages routes loaded ");
-//GET /:matchId - fetch all the messages
-//POST /:matchId - send a message
-//DELETE /:messageId - unsend a message (sender only )
-const router = Router();
-router.get("/:matchId",requireAuth,getMessages);
-router.post("/:matchId",requireAuth,sendMessage);
-router.delete("/test/ping", (req, res) => {
-    res.json({ message: "DELETE works!" });
-});
 
-router.delete("/:messageId",(req,res)=>{
-    console.log("Delete hit!",req.params);
-    res.json({ok:true, params: req.params});
-});
+//All routes related to matching between users
+//All routes require authetication
+
+const router = Router();
+
+//send a match request to a post
+router.post("/request", requireAuth, requestMatch);
+
+//accept a match request ( post owner only)
+router.put("/:id/accept", requireAuth, acceptMatch);
+
+//decline a match request (post owner only)
+router.put("/:id/decline",requireAuth, declineMatch);
+
+//cancel a match request ( requester only)
+router.put("/:id/cancel",requireAuth,cancelMatch);
+
+//get all incoming match requests (where i am the post owner)
+router.get("/incoming", requireAuth, getIncomingMatches);
+
+//get all outgoing match requests (where i am the requester)
+router.get("/outgoing", requireAuth, getOutgoingMatches);
+
+//get all accepted matches ( for chat access)
+router.get("/accepted", requireAuth, getAcceptedMatches);
 
 export default router;

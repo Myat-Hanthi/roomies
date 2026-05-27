@@ -55,7 +55,59 @@ const postTypeMap: Record<string, string> = {
   "Short-term Rental": "sublet",
   "Contract Transfer": "lease_takeover",
 };
-
+const roomTypeOptions = [
+  { label: "No Preference", value: "" },
+  { label: "Studio", value: "studio" },
+  { label: "One Room", value: "one_room" },
+  { label: "Officetel", value: "officetel" },
+  { label: "Apartment", value: "apartment" },
+  { label: "Shared House", value: "shared_house" },
+];
+const SEOUL_DISTRICTS = [
+  { name: "Gangnam-gu", lat: 37.5172, lng: 127.0473 },
+  { name: "Gangdong-gu", lat: 37.5301, lng: 127.1238 },
+  { name: "Gangbuk-gu", lat: 37.6396, lng: 127.0253 },
+  { name: "Gangseo-gu", lat: 37.5509, lng: 126.8495 },
+  { name: "Gwanak-gu", lat: 37.4784, lng: 126.9516 },
+  { name: "Gwangjin-gu", lat: 37.5384, lng: 127.0822 },
+  { name: "Guro-gu", lat: 37.4954, lng: 126.8874 },
+  { name: "Geumcheon-gu", lat: 37.4600, lng: 126.9002 },
+  { name: "Nowon-gu", lat: 37.6542, lng: 127.0568 },
+  { name: "Dobong-gu", lat: 37.6688, lng: 127.0471 },
+  { name: "Dongdaemun-gu", lat: 37.5744, lng: 127.0396 },
+  { name: "Dongjak-gu", lat: 37.5124, lng: 126.9393 },
+  { name: "Mapo-gu", lat: 37.5663, lng: 126.9014 },
+  { name: "Seodaemun-gu", lat: 37.5791, lng: 126.9368 },
+  { name: "Seocho-gu", lat: 37.4836, lng: 127.0327 },
+  { name: "Seongdong-gu", lat: 37.5633, lng: 127.0369 },
+  { name: "Seongbuk-gu", lat: 37.5894, lng: 127.0167 },
+  { name: "Songpa-gu", lat: 37.5145, lng: 127.1059 },
+  { name: "Yangcheon-gu", lat: 37.5270, lng: 126.8561 },
+  { name: "Yeongdeungpo-gu", lat: 37.5263, lng: 126.8963 },
+  { name: "Yongsan-gu", lat: 37.5326, lng: 126.9905 },
+  { name: "Eunpyeong-gu", lat: 37.6027, lng: 126.9291 },
+  { name: "Jongno-gu", lat: 37.5735, lng: 126.9790 },
+  { name: "Jung-gu", lat: 37.5640, lng: 126.9975 },
+  { name: "Jungnang-gu", lat: 37.6063, lng: 127.0928 },
+];
+// Form State 
+const initialForm = {
+  postType: "Room Available",
+  title: "",
+  region: "",
+  address: "",
+  nearUniversity: "",
+  roomType: "",
+  rent: "",
+  deposit: "",
+  moveInDate: "",
+  moveOutDate: "",
+  genderPreference: "No Preference",
+  descriptionKo: "",
+  descriptionEn: "",
+  latitude: null as number | null,
+  longitude: null as number | null,
+};
 
 // Main PostForm Component
 
@@ -64,34 +116,37 @@ export default function PostForm() {
   const navigate = useNavigate();
 
   // Form State 
-  const [form, setForm] = useState({
-    postType: "Room Available",
-    title: "",
-    region: "",
-    address: "",
-    rent: "",
-    deposit: "",
-    moveInDate: "",
-    genderPreference: "No Preference",
-    descriptionKo: "",
-    descriptionEn: "",
-  });
+  const [form, setForm] = useState(initialForm);
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   //  Handle input changes 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
     setError("");
+    setSuccess("");
+  };
+  const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedName = e.target.value;
+    const district = SEOUL_DISTRICTS.find(d => d.name === selectedName);
+
+    setForm(prev => ({
+      ...prev,
+      region: selectedName,
+      latitude: district?.lat || null,
+      longitude: district?.lng || null,
+    }));
   };
 
   //  Toggle lifestyle tag 
   const toggleTag = (tag: string) => {
+    setSuccess("");
     setSelectedTags(prev =>
       prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
     );
@@ -103,6 +158,7 @@ export default function PostForm() {
     if (files.length === 0) return;
 
     setPhotoFiles(files);
+    setSuccess("");
 
     // Generate preview URLs
     Promise.all(
@@ -125,15 +181,19 @@ export default function PostForm() {
         .from("room-photos")
         .upload(fileName, file, { upsert: true });
 
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage
-          .from("room-photos")
-          .getPublicUrl(fileName);
-        urls.push(urlData.publicUrl);
+      if (uploadError) {
+        throw uploadError;
       }
+
+      const { data: urlData } = supabase.storage
+        .from("room-photos")
+        .getPublicUrl(fileName);
+      urls.push(urlData.publicUrl);
     }
     return urls;
   };
+
+  
 
   // Submit post to Express backend
   const submitPost = async (e: FormEvent<HTMLFormElement>) => {
@@ -153,30 +213,43 @@ export default function PostForm() {
       if (!user) { navigate("/login"); return; }
 
       const token = await getToken();
-      console.log("Token:",token); // Debug: Check if token is retrieved
+      console.log("Token:", token); // Debug: Check if token is retrieved
 
       // Upload photos to Supabase Storage first
       const photoUrls = await uploadPhotos(user.id);
 
-      // Send post data to Express backend
+      
+      
+
+      // Send post data to Express backend with coordinates
       await axios.post(`${API}/posts`, {
         post_type: postTypeMap[form.postType],    // Convert to DB enum
         district: form.region,
         full_address: form.address,               // Hidden until match
+        near_university: form.nearUniversity,
+        room_type: form.roomType || null,
         monthly_rent: Number(form.rent),
         deposit: Number(form.deposit),
         available_from: form.moveInDate,
+        available_until: form.moveOutDate || null,
         gender_preference: form.genderPreference,
         lifestyle_tags: selectedTags,
         description_en: form.descriptionEn,
-        description_ko: form.descriptionEn,       // Same for now
+        description_ko: form.descriptionKo || form.descriptionEn,       // Same for now
         photos: photoUrls,
         status: "active",
+        latitude: form.latitude, //add coordinates
+        longitude: form.longitude, //add coordinates
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      navigate("/browse");
+      setForm(initialForm);
+      setSelectedTags([]);
+      setPhotoFiles([]);
+      setPhotoPreviews([]);
+      setSuccess("Post created successfully.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to create post. Please try again.");
     } finally {
@@ -194,11 +267,11 @@ export default function PostForm() {
       <nav style={styles.nav}>
         <p style={styles.brand}>roomies</p>
         <div style={styles.navRight}>
-           <button style={styles.navLink} onClick={() => navigate("/browse")}>Browse</button>
-  <button style={styles.navLink} onClick={() => navigate("/matches")}>Matches</button>
-  <button style={styles.navLink} onClick={() => navigate("/chat")}>Chat</button>
-  <button style={styles.navLink} onClick={() => navigate("/review")}>Review</button>
-  <button style={styles.navLink} onClick={() => navigate("/profile")}>Profile</button>
+          <button style={styles.navLink} onClick={() => navigate("/browse")}>Browse</button>
+          <button style={styles.navLink} onClick={() => navigate("/matches")}>Matches</button>
+          <button style={styles.navLink} onClick={() => navigate("/chat")}>Chat</button>
+          <button style={styles.navLink} onClick={() => navigate("/review")}>Review</button>
+          <button style={styles.navLink} onClick={() => navigate("/profile")}>Profile</button>
         </div>
       </nav>
 
@@ -218,10 +291,12 @@ export default function PostForm() {
         </section>
 
         {/* ── Post Form ── */}
+        {error && <div style={styles.errorBox}>{error}</div>}
+        {success && <div style={styles.successBox}>{success}</div>}
+
         <form style={styles.formPanel} onSubmit={submitPost}>
 
           {/* Error message */}
-          {error && <div style={styles.errorBox}>{error}</div>}
 
           {/* ── Basic Information ── */}
           <div style={styles.section}>
@@ -241,9 +316,15 @@ export default function PostForm() {
 
               <div style={styles.fieldGroup}>
                 <label style={styles.label}>Region / District</label>
-                <input name="region" value={form.region}
-                  onChange={handleChange} style={styles.input}
-                  placeholder="e.g. Seodaemun-gu" />
+                <select
+                  value={form.region}
+                  onChange={handleDistrictChange}
+                  style={styles.select}>
+                  <option value="">Select a district</option>
+                  {SEOUL_DISTRICTS.map(d => (
+                    <option key={d.name} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -257,20 +338,38 @@ export default function PostForm() {
 
               <div style={styles.fieldGroup}>
                 <label style={styles.label}>Near University</label>
-                <input name="nearUniversity" value={(form as any).nearUniversity || ""}
+                <input name="nearUniversity" value={form.nearUniversity}
                   onChange={handleChange} style={styles.input}
                   placeholder="e.g. 10 min walk to Myongji" />
+              </div>
+            </div>
+
+            <div style={styles.grid2}>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Room Type</label>
+                <select
+                  name="roomType"
+                  value={form.roomType}
+                  onChange={handleChange}
+                  style={styles.select}
+                >
+                  {roomTypeOptions.map((option) => (
+                    <option key={option.value || "empty"} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
 
           <div style={styles.divider} />
 
-          {/* ── Budget & Move-in ── */}
+          {/* ── Budget & Dates ── */}
           <div style={styles.section}>
-            <p style={styles.sectionLabel}>Budget & Move-in</p>
+            <p style={styles.sectionLabel}>Budget & Dates</p>
 
-            <div style={styles.grid3}>
+            <div style={styles.grid4}>
               <div style={styles.fieldGroup}>
                 <label style={styles.label}>Monthly Rent (10,000 KRW)</label>
                 <input name="rent" type="number" min="0"
@@ -290,6 +389,17 @@ export default function PostForm() {
                 <input name="moveInDate" type="date"
                   value={form.moveInDate} onChange={handleChange}
                   style={styles.input} />
+              </div>
+
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Move-out Date</label>
+                <input
+                  name="moveOutDate"
+                  type="date"
+                  value={form.moveOutDate}
+                  onChange={handleChange}
+                  style={styles.input}
+                />
               </div>
             </div>
             <p style={styles.hint}>Enter rent and deposit in units of 10,000 KRW.</p>
@@ -411,10 +521,12 @@ const styles: Record<string, CSSProperties> = {
   description: { fontSize: 14, color: "#888", lineHeight: 1.7, maxWidth: 680, margin: 0 },
   formPanel: { background: "#ffffff", borderRadius: 2, boxShadow: "0 4px 40px rgba(0,0,0,0.06)", padding: "40px 48px" },
   errorBox: { background: "#fff5f5", border: "1px solid #fecaca", color: "#c0392b", padding: "12px 16px", borderRadius: 2, fontSize: 13, marginBottom: 24 },
+  successBox: { background: "#f0faf4", border: "1px solid #a8e6c1", color: "#1f8a4c", padding: "12px 16px", borderRadius: 2, fontSize: 13, marginBottom: 24 },
   section: { marginBottom: 8 },
   sectionLabel: { fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase", color: "#aaa", marginBottom: 18 },
   grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 18 },
   grid3: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24 },
+  grid4: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 24 },
   fieldGroup: { display: "flex", flexDirection: "column", gap: 6, marginBottom: 18 },
   label: { fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#bbb" },
   input: { border: "none", borderBottom: "1.5px solid #ddd", padding: "8px 0", fontSize: 14, fontFamily: "'Georgia', serif", color: "#1a1a1a", background: "transparent", outline: "none", width: "100%" },
